@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
+import re
 import pandas as pd
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from datetime import datetime
 from io import BytesIO
 
@@ -61,9 +63,10 @@ def jump_time_input(jump_time, url):
         st.error(f"Failed to jump time: {ex}")
     return 0
 
+
 def validate_time(jump):
+    print(f"Validate time : {jump}")
     try:
-        
         datetime.strptime(jump, "%H:%M:%S")  
         return True
     except ValueError:
@@ -156,6 +159,7 @@ def main():
     with buff2:
         if st.button("Jump time"):
             if validate_time(jump_time):
+                print(f" Type of Jump time : {type(jump_time)}")
                 jump_sec = jump_time_input(jump_time, url)
                 if jump_sec >= 0:
                     st.session_state.video_time = jump_sec
@@ -164,12 +168,53 @@ def main():
             else:
                 st.error("Invalid time format. Please use HH:MM:SS format (e.g., 01:15:30 PM).")
 
+
+    # CSV file Click 
     if extract_time_csv is not None and selected_value:
         filtered_df = extract_time_csv[extract_time_csv[selected_column] == selected_value]
         st.subheader(f"Uploaded File Data :")
-        st.write(filtered_df)
+        # st.write(filtered_df)
+        # Ensure 'Time' column exists
+        if 'Time' not in filtered_df.columns:
+            st.warning("No 'Time' column found in the filtered data.")
+        else:
+            # Configure AgGrid table
+            gb = GridOptionsBuilder.from_dataframe(filtered_df)
+            gb.configure_selection('single', use_checkbox=False)  
+            grid_options = gb.build()
 
-        
+            grid_response = AgGrid(
+                filtered_df,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                height=400,
+                theme="streamlit"
+            )
+            
+            try:
+                # Extract selected rows
+                selected_rows = grid_response['selected_rows']  
+                # selected_row_converted = str(selected_rows[0]['Time']) 
+                selected_row_converted = str(selected_rows['Time'])
+                extracted_time = re.search(r'(\d{2}:\d{2}:\d{2} (AM|PM))', selected_row_converted)
+                if extracted_time:
+                    extracted_time_str = extracted_time.group(0)
+                else:
+                    extracted_time_str = ""
+                print(f"Selected : {extracted_time_str}")
+
+                # Validate the extracted time
+                if validate_time(extracted_time_str):
+                    jump_sec = jump_time_input(extracted_time_str, url)  
+                    if jump_sec >= 0:
+                        st.session_state.video_time = jump_sec
+                    else:
+                        st.error("Failed to calculate jump time offset.")
+                else:
+                    st.error("Invalid time format. Please use HH:MM:SS format (e.g., 01:15:30).")
+            except (KeyError, TypeError, AttributeError) as e:
+                pass
+            
 
 if __name__ == "__main__":
     main()

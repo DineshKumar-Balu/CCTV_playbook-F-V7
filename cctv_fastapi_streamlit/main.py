@@ -210,7 +210,7 @@ async def trim_video(request: Request):
 async def calculate_jump(request: Request):
     body = await request.json()
     jump_time_in = body.get("jump_time")
-    
+    print(f"Time recived from jump function: {jump_time_in}")
     if jump_time_in is None:
         raise HTTPException(status_code=400, detail="Jump time not provided")
     
